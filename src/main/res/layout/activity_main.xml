@@ -1,8 +1,4 @@
-<RelativeLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="fill_parent"
-    android:layout_height="fill_parent" >
-
-    <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:orientation="vertical"
     android:padding="10dp"
     android:layout_width="match_parent"
@@ -19,7 +15,6 @@
             android:layout_width="match_parent"
             android:layout_height="200dp"
             android:layout_weight="1"
-            android:layout_below="@+id/scanBtn"
             />
         <Button
             android:id="@+id/scanBtn"
@@ -28,8 +23,5 @@
             android:layout_gravity="bottom"
             android:layout_margin="15dp"
             android:background="@android:color/holo_red_light"
-            android:layout_below="@+id/wifiList"
             android:text="Scan WiFi"/>
-    </LinearLayout>
-
-</RelativeLayout>
+   </LinearLayout>
