@@ -19,8 +19,30 @@ import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+
+import retrofit2.Call;
+import retrofit2.Callback;
+import retrofit2.Response;
 
 import net.hckble.testapp3x.model.AccessPoint;
+import net.hckble.testapp3x.model.OUI;
+import net.hckble.testapp3x.model.OUIqry;
+import net.hckble.testapp3x.network.GetOIUDataService;
+import net.hckble.testapp3x.network.RetrofitClientInstance;
+import net.hckble.testapp3x.adapter.CustomAdapter;
+
+//retrofit code
+import retrofit2.Retrofit;
+import retrofit2.converter.gson.GsonConverterFactory;
+//import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.LinearLayoutManager;
+import androidx.recyclerview.widget.RecyclerView;
+
+import org.json.JSONObject;
+
+import okhttp3.RequestBody;
+import retrofit2.http.POST;
 
 public class MainActivity extends AppCompatActivity{
 
@@ -33,6 +55,10 @@ public class MainActivity extends AppCompatActivity{
     private ArrayList<String> arrayListPub = new ArrayList<>();
     private ArrayList<AccessPoint> arrayListAP = new ArrayList<>();
     private ArrayAdapter adapter, adapterPub;
+
+    //code for retrofit
+    private RecyclerView recyclerView;
+    private static final String BASE_URL = "https://pop.hckbl.net/";
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
@@ -53,9 +79,10 @@ public class MainActivity extends AppCompatActivity{
         wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
 
         if (!wifiManager.isWifiEnabled()) {
-            Toast.makeText(this, "WiFi is disabled ... We need to enable it", Toast.LENGTH_LONG).show();
+            //
+            // Toast.makeText(this, "WiFi is disabled ... We need to enable it", Toast.LENGTH_LONG).show();
             wifiManager.setWifiEnabled(true);
-        } else Toast.makeText(this, "WiFi is enabled", Toast.LENGTH_LONG).show();
+        } //else Toast.makeText(this, "WiFi is enabled", Toast.LENGTH_LONG).show();
 
         adapter = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, arrayList);
         adapterPub = new ArrayAdapter<>(this, android.R.layout.simple_list_item_1, arrayListPub);
@@ -77,11 +104,12 @@ public class MainActivity extends AppCompatActivity{
         public void onReceive(Context context, Intent intent) {
             boolean success = intent.getBooleanExtra(
                     WifiManager.EXTRA_RESULTS_UPDATED, true);
+            Toast.makeText(context, "scanSuccess()", Toast.LENGTH_SHORT).show();
             scanSuccess(context, intent);
         }
 
         public void scanSuccess(Context context, Intent intent) {
-            AccessPoint ap;
+            Toast.makeText(context, "scanSuccess()", Toast.LENGTH_SHORT).show();
             results = wifiManager.getScanResults();
             unregisterReceiver(this);
 
@@ -90,21 +118,52 @@ public class MainActivity extends AppCompatActivity{
             arrayListPub.clear();
             adapter.notifyDataSetChanged();
             adapterPub.notifyDataSetChanged();
+            // after scan lookup results with web service
+            Retrofit retrofit = new Retrofit.Builder()
+                    .baseUrl(BASE_URL).addConverterFactory(GsonConverterFactory.create())
+                    .build();
+            GetOIUDataService ouiDataService = retrofit.create(GetOIUDataService.class);
 
             for (ScanResult scanResult : results) {
-                ap = new AccessPoint(scanResult.BSSID, scanResult.SSID, scanResult.capabilities);
-                arrayListAP.add(ap);
-                if (ap.isEncrypted())
-                    arrayList.add("SSID:" + ap.getSSID() + " - BSSID:" + ap.getBSSID() + " - Encrypted:" + ap.isEncrypted());
-                else
-                    arrayListPub.add("SSID:" + ap.getSSID() + " - BSSID:" + ap.getBSSID() + " - Encrypted:" + ap.isEncrypted());
-            adapter.notifyDataSetChanged();
-            adapterPub.notifyDataSetChanged();
+                final AccessPoint ap = new AccessPoint(scanResult.BSSID, scanResult.SSID, scanResult.capabilities);
+                String ouiString = scanResult.BSSID.substring(0,8);
+                OUIqry o = new OUIqry(ouiString);
+                Call<OUI> call = ouiDataService.lookup_oui(o);
+                Toast.makeText(MainActivity.this, "looping result" + call.toString(), Toast.LENGTH_SHORT);
+                call.enqueue(new Callback<OUI>() {
+
+                    @Override
+                    public void onResponse(Call<OUI> call, Response<OUI> response) {
+                        //Toast.makeText(MainActivity.this, "onResponse()", Toast.LENGTH_SHORT).show();
+                        OUI thisResponse = response.body();
+                        if (thisResponse == null)
+                            thisResponse = new OUI("xxx","xxx"+ response.toString(), "xxx" + response.raw().toString());
+                        if (ap.isEncrypted()) {
+                            arrayList.add("SSID:" + ap.getSSID() + " - BSSID:" + ap.getBSSID() + " - Encrypted:" + ap.isEncrypted() +
+                                    " - OUI Long name - " + thisResponse.getLongname() + " - OUI Short name - " + thisResponse.getShortname());
+                            adapter.notifyDataSetChanged();
+                        } else {
+                            arrayListPub.add("SSID:" + ap.getSSID() + " - BSSID:" + ap.getBSSID() + " - Encrypted:" + ap.isEncrypted() +
+                                    " - OUI Long name - " + thisResponse.getLongname() + " - OUI Short name - " + thisResponse.getShortname());
+                            adapterPub.notifyDataSetChanged();
+                        }
+                    }
+
+                    @Override
+                    public void onFailure(Call<OUI> call, Throwable t) {
+                        Toast.makeText(MainActivity.this, "Something went wrong...Please try later!" + t.toString(), Toast.LENGTH_LONG).show();
+                        if (ap.isEncrypted()) {
+                            arrayList.add("SSID:" + ap.getSSID() + " - BSSID:" + ap.getBSSID() + " - Encrypted:" + ap.isEncrypted());
+                            adapter.notifyDataSetChanged();
+                        } else {
+                            arrayListPub.add("SSID:" + ap.getSSID() + " - BSSID:" + ap.getBSSID() + " - Encrypted:" + ap.isEncrypted());
+                            adapterPub.notifyDataSetChanged();
+                        }
+                    }
+                });
+
             }
         }
 
-        public void checkAccessPointOUI(AccessPoint ap) {
-
-        }
     };
 }
